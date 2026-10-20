@@ -73,7 +73,7 @@ git push -u origin main`;
                   </span>
                 </div>
                 <p className="text-xs text-neutral-600 mt-1">
-                  В архиве уже лежат все собранные файлы: <code className="font-mono bg-white px-1 rounded border border-neutral-200">index.html</code>, папка <code className="font-mono bg-white px-1 rounded border border-neutral-200">assets</code>, <code className="font-mono bg-white px-1 rounded border border-neutral-200">404.html</code>, <code className="font-mono bg-white px-1 rounded border border-neutral-200">.nojekyll</code>. Распакуйте архив на свой компьютер и перетащите на GitHub!
+                  В архиве лежит готовый автономный файл <code className="font-mono bg-white px-1 rounded border border-neutral-200">index.html</code> (все стили и скрипты уже вшиты внутрь, папка <code className="font-mono bg-white px-1 rounded border border-neutral-200">assets</code> больше не нужна!), а также вспомогательные <code className="font-mono bg-white px-1 rounded border border-neutral-200">404.html</code> и <code className="font-mono bg-white px-1 rounded border border-neutral-200">.nojekyll</code>. Достаточно перетащить их на GitHub!
                 </p>
               </div>
             </div>

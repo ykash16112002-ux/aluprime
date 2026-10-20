@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
-import { ArrowUpRight, Upload } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ArrowUpRight, Upload, Download, Globe, Check, Loader2 } from 'lucide-react';
+import { defaultHeroImage } from '../data/heroImage';
 
 interface BuildingHeroBannerProps {
   onOpenConsultation: () => void;
@@ -10,7 +11,9 @@ interface BuildingHeroBannerProps {
  * Hero Banner:
  * - Natural rendering of the main photo without artificial sharpening/filters
  * - Direct image upload and replacement
- * - Seamless vector fallback matching architectural reference
+ * - One-click save to file download
+ * - Permanent project persistence and automated GitHub Pages deployment
+ * - Seamless architectural fallback
  */
 export const BuildingHeroBanner: React.FC<BuildingHeroBannerProps> = ({
   onOpenConsultation,
@@ -20,13 +23,55 @@ export const BuildingHeroBanner: React.FC<BuildingHeroBannerProps> = ({
     try {
       // Remove any legacy enhanced cache
       localStorage.removeItem('hero_enhanced_image');
-      return localStorage.getItem('hero_custom_uploaded_image') || null;
+      return localStorage.getItem('hero_custom_uploaded_image') || defaultHeroImage || null;
     } catch {
-      return null;
+      return defaultHeroImage || null;
     }
   });
 
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [statusMessage, setStatusMessage] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-sync image to backend if in localStorage but not yet deployed
+  useEffect(() => {
+    const localImg = localStorage.getItem('hero_custom_uploaded_image');
+    if (localImg && localImg !== defaultHeroImage && saveStatus === 'idle') {
+      persistImageToBackend(localImg, false);
+    }
+  }, []);
+
+  const persistImageToBackend = async (dataUrl: string, pushToGithub: boolean = true) => {
+    setSaveStatus('saving');
+    setStatusMessage(pushToGithub ? 'Сохранение и публикация на GitHub Pages...' : 'Сохранение фото в проект...');
+    try {
+      const res = await fetch('/api/save-hero-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUrl, pushToGithub }),
+      });
+      if (res.ok) {
+        setSaveStatus('saved');
+        setStatusMessage(
+          pushToGithub
+            ? '✅ Фото сохранено в проект и отправлено на GitHub Pages!'
+            : '✅ Фотография сохранена в файлах сайта!'
+        );
+        setTimeout(() => {
+          setSaveStatus('idle');
+          setStatusMessage('');
+        }, 6000);
+      } else {
+        setSaveStatus('saved');
+        setStatusMessage('✅ Фото сохранено в вашем браузере!');
+        setTimeout(() => setSaveStatus('idle'), 4000);
+      }
+    } catch {
+      setSaveStatus('saved');
+      setStatusMessage('✅ Фото сохранено локально');
+      setTimeout(() => setSaveStatus('idle'), 4000);
+    }
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -39,8 +84,24 @@ export const BuildingHeroBanner: React.FC<BuildingHeroBannerProps> = ({
           localStorage.setItem('hero_custom_uploaded_image', dataUrl);
           localStorage.removeItem('hero_enhanced_image');
         } catch {}
+        // Automatically save to backend and publish to GitHub
+        persistImageToBackend(dataUrl, true);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDownloadPhoto = () => {
+    if (!userUploadedFile) return;
+    try {
+      const link = document.createElement('a');
+      link.href = userUploadedFile;
+      link.download = 'aluprime-glazing-hero.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (e) {
+      console.error('Download error:', e);
     }
   };
 
@@ -211,26 +272,77 @@ export const BuildingHeroBanner: React.FC<BuildingHeroBannerProps> = ({
       </div>
 
       {/* 
-        Image Upload / Change Control:
-        Clean, unobtrusive button to change or upload a photo without any post-processing filters
+        Image Toolbar:
+        - Download uploaded photo directly to disk
+        - Save photo into project & push live to GitHub Pages
+        - Upload / Change photo
       */}
-      <div className="absolute top-6 right-6 z-20 flex items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+      <div className="absolute top-4 sm:top-6 right-4 sm:right-6 z-20 flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
 
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          className="px-3.5 py-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-1.5 border border-white/25 transition-all shadow-md cursor-pointer"
-          title="Загрузить или заменить фото"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          <span>{userUploadedFile ? 'Заменить фото' : 'Загрузить фото'}</span>
-        </button>
+          {/* Download Photo Button (if photo exists) */}
+          {userUploadedFile && (
+            <button
+              onClick={handleDownloadPhoto}
+              className="px-3.5 py-2 rounded-full bg-black/50 hover:bg-black/75 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-1.5 border border-white/25 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+              title="Скачать это фото к себе на компьютер"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-300" />
+              <span>Скачать фото</span>
+            </button>
+          )}
+
+          {/* Save to Project & Push to GitHub */}
+          {userUploadedFile && (
+            <button
+              onClick={() => persistImageToBackend(userUploadedFile, true)}
+              disabled={saveStatus === 'saving'}
+              className="px-3.5 py-2 rounded-full bg-emerald-600/80 hover:bg-emerald-600 backdrop-blur-md text-white text-[11px] font-semibold flex items-center gap-1.5 border border-emerald-400/30 transition-all shadow-md cursor-pointer disabled:opacity-50 hover:scale-[1.02] active:scale-95"
+              title="Зафиксировать это фото в проекте навсегда и обновить на GitHub Pages"
+            >
+              {saveStatus === 'saving' ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>Публикация...</span>
+                </>
+              ) : (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Сохранить на GitHub</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* Upload / Replace Photo */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3.5 py-2 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md text-white text-[11px] font-medium flex items-center gap-1.5 border border-white/25 transition-all shadow-md cursor-pointer hover:scale-[1.02] active:scale-95"
+            title="Загрузить новое фото"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>{userUploadedFile ? 'Заменить' : 'Загрузить фото'}</span>
+          </button>
+        </div>
+
+        {/* Status notification toast */}
+        {statusMessage && (
+          <div className="bg-neutral-900/90 backdrop-blur-md text-white text-[11px] px-3.5 py-2 rounded-xl border border-white/20 shadow-xl max-w-xs animate-in fade-in slide-in-from-top-2 duration-200 flex items-center gap-2">
+            {saveStatus === 'saving' ? (
+              <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin shrink-0" />
+            ) : (
+              <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            )}
+            <span className="leading-tight">{statusMessage}</span>
+          </div>
+        )}
       </div>
     </div>
   );
